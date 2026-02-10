@@ -1,0 +1,91 @@
+# Example configuration file for GCN-HKD system
+# Copy and modify this file to customize your experiments
+
+# Data Configuration
+data:
+  datasets:
+    - SARD
+    - BigVul
+  graph_types:
+    - CFG
+    - DFG
+  max_nodes: 10000
+  node_feature_dims: 768
+  train_ratio: 0.7
+  val_ratio: 0.15
+  test_ratio: 0.15
+  batch_size: 32
+  num_workers: 4
+  prefetch_factor: 2
+
+# Adversarial Transformation Configuration
+adversarial:
+  transformations:
+    - variable_renaming
+    - dead_code_insertion
+    - control_flow_flattening
+  variable_rename_prob: 0.3
+  dead_code_ratio: 0.2
+  control_flow_complexity: 0.4
+  perturbation_budget: 0.1
+  num_perturbation_samples: 5
+
+# Model Configuration
+model:
+  num_gat_layers: 3
+  num_attention_heads: 8
+  hidden_dim: 256
+  output_dim: 128
+  dropout: 0.2
+  temperature: 4.0
+  alpha_kd: 0.5
+  teacher_hidden_dim: 512
+  teacher_num_layers: 4
+  student_hidden_dim: 256
+  student_num_layers: 3
+
+# Training Configuration
+training:
+  optimizer: adamw
+  learning_rate: 0.001
+  weight_decay: 0.00001
+  warmup_steps: 1000
+  scheduler: cosine
+  num_epochs: 100
+  patience: 15
+  vulnerability_loss_weight: 1.0
+  kd_loss_weight: 0.5
+  robustness_loss_weight: 0.3
+  gradient_clip: 1.0
+  accumulation_steps: 4
+  mixed_precision: true
+  eval_every_n_steps: 100
+  save_best: true
+
+# Evaluation Configuration
+evaluation:
+  metrics:
+    - accuracy
+    - precision
+    - recall
+    - f1
+    - auc_roc
+    - auc_pr
+  evaluate_robustness: true
+  perturbation_levels:
+    - 0.05
+    - 0.1
+    - 0.15
+    - 0.2
+    - 0.3
+  test_on_real_cves: true
+  test_on_kernel_code: true
+  test_on_openssl: true
+
+# System Configuration
+seed: 42
+device: cuda
+distributed: false
+num_gpus: 1
+log_level: INFO
+log_interval: 10

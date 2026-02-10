@@ -1,0 +1,27 @@
+# Core Dependencies
+torch>=2.0.0
+torch-geometric>=2.3.0
+numpy>=1.24.0
+scipy>=1.10.0
+pandas>=2.0.0
+
+# ML/Data Science
+scikit-learn>=1.2.0
+networkx>=3.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Utilities
+pyyaml>=6.0
+tqdm>=4.65.0
+pydantic>=2.0.0
+
+# Development
+pytest>=7.0.0
+black>=23.0.0
+flake8>=6.0.0
+isort>=5.12.0
+
+# Optional: For binary analysis
+# capstone>=5.0.0  # Disassembly engine
+# pwntools>=4.10.0  # CTF tools
