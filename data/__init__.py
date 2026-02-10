@@ -1,4 +1,3 @@
-"""Data module for GCN-HKD Adversarial Robustness system."""
 
 from .loaders import DataLoader
 from .preprocessors import GraphConstructor

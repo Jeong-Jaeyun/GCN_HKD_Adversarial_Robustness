@@ -1,4 +1,3 @@
-"""Knowledge Distillation module."""
 
 from .hkd import HierarchicalKnowledgeDistillation
 from .losses import DistillationLoss, HierarchicalDistillationLoss

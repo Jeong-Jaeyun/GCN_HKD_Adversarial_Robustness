@@ -76,24 +76,24 @@ GCN_HKD_Adversarial_Robustness/
 
 ## Key Features
 
-### 📊 **Multi-Dataset Support**
+###  **Multi-Dataset Support**
 - **SARD (NIST)**: Diverse CWE categories for learning CWE hierarchy
 - **BigVul (CVE)**: Real vulnerabilities from open-source projects (C/C++)
 - **D-Sieve**: Binary robustness testing across optimization levels
 
-### 🛡️ **Adversarial Robustness**
+###  **Adversarial Robustness**
 - Evaluates robustness to:
   - **Node feature perturbations** (input noise)
   - **Edge perturbations** (structural changes)
   - **Structural transformations** (code obfuscation)
 - Certified robustness evaluation (Randomized smoothing ready)
 
-### 🎓 **Hierarchical Knowledge Distillation**
+###  **Hierarchical Knowledge Distillation**
 - Multi-level feature transfer
 - Temperature-scaled softmax for soft targets
 - Layer-wise distillation loss
 
-### 📈 **Comprehensive Evaluation**
+###  **Comprehensive Evaluation**
 - Accuracy, Precision, Recall, F1, MCC
 - ROC-AUC and PR-AUC curves
 - Robustness curves across perturbation budgets
@@ -271,11 +271,11 @@ config = Config.from_yaml('config.yaml')
 3. **D-Sieve + Real code**: Test on Linux Kernel / OpenSSL to show robustness
 
 ### Tips for Q1 Acceptance
-✅ Include direct adversarial modifications to Linux Kernel / OpenSSL code
-✅ Show robustness curves with multiple attack types
-✅ Compare against baselines (GCN, CNN-based detectors)
-✅ Ablation study: impact of each phase (Phase 1, 2, 3)
-✅ Statistical significance testing
+ Include direct adversarial modifications to Linux Kernel / OpenSSL code
+ Show robustness curves with multiple attack types
+ Compare against baselines (GCN, CNN-based detectors)
+ Ablation study: impact of each phase (Phase 1, 2, 3)
+ Statistical significance testing
 
 ---
 

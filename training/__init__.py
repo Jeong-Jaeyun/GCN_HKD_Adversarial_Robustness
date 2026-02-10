@@ -1,4 +1,3 @@
-"""Training module for the GCN-HKD system."""
 
 from .trainer import Trainer
 from .validator import Validator

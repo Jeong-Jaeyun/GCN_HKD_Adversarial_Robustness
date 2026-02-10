@@ -1,4 +1,3 @@
-"""Model module for GCN-HKD Adversarial Robustness system."""
 
 from .base import BaseModel
 from .gat import GraphAttentionNetwork

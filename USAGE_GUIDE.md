@@ -40,7 +40,7 @@ pip install -r requirements.txt
 ### Step 4: Verify Installation
 ```python
 # Test imports
-python -c "import torch; import torch_geometric; print('✓ Installation successful')"
+python -c "import torch; import torch_geometric; print(' Installation successful')"
 ```
 
 ---
@@ -474,14 +474,14 @@ config.training.kd_loss_weight = 0.3
 
 ## Best Practices
 
-✅ **Do:**
+ **Do:**
 - Use multiple datasets for training (SARD + BigVul)
 - Evaluate robustness across perturbation budgets
 - Compare against baseline methods
 - Perform ablation studies
 - Save checkpoints regularly
 
-❌ **Don't:**
+ **Don't:**
 - Mix shuffled and unshuffled batches
 - Train without validation
 - Ignore class imbalance issues

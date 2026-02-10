@@ -1,4 +1,3 @@
-"""Visualization utilities."""
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,44 +10,37 @@ def plot_robustness_curve(
     save_path: Optional[Path] = None,
     title: str = "Adversarial Robustness Curve"
 ) -> None:
-    """Plot robustness curve showing accuracy vs perturbation budget.
-    
-    Args:
-        results: Robustness evaluation results
-        save_path: Path to save figure
-        title: Plot title
-    """
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    
-    # Extract data
+
+
     budgets = sorted(results['adversarial'].keys())
-    
-    # Accuracy plot
+
+
     ax = axes[0]
     attack_types = set()
     for budget_results in results['adversarial'].values():
         attack_types.update(budget_results.keys())
-    
+
     for attack_type in attack_types:
         accs = []
         for budget in budgets:
             if attack_type in results['adversarial'][budget]:
                 acc = results['adversarial'][budget][attack_type]['accuracy_perturbed']
                 accs.append(acc)
-        
+
         ax.plot(budgets, accs, marker='o', label=attack_type)
-    
-    # Add clean accuracy baseline
+
+
     clean_acc = results['clean']['accuracy']
     ax.axhline(y=clean_acc, color='green', linestyle='--', label='Clean Accuracy')
-    
+
     ax.set_xlabel('Perturbation Budget')
     ax.set_ylabel('Accuracy')
     ax.set_title('Accuracy vs Perturbation Budget')
     ax.legend()
     ax.grid(True, alpha=0.3)
-    
-    # Robustness gap plot
+
+
     ax = axes[1]
     for attack_type in attack_types:
         gaps = []
@@ -56,23 +48,23 @@ def plot_robustness_curve(
             if attack_type in results['adversarial'][budget]:
                 gap = results['adversarial'][budget][attack_type]['robustness_gap']
                 gaps.append(gap)
-        
+
         ax.plot(budgets, gaps, marker='s', label=attack_type)
-    
+
     ax.set_xlabel('Perturbation Budget')
     ax.set_ylabel('Robustness Gap')
     ax.set_title('Robustness Gap vs Perturbation Budget')
     ax.legend()
     ax.grid(True, alpha=0.3)
-    
+
     plt.suptitle(title, fontsize=14, fontweight='bold')
     plt.tight_layout()
-    
+
     if save_path:
         save_path = Path(save_path)
         save_path.parent.mkdir(parents=True, exist_ok=True)
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    
+
     plt.show()
 
 
@@ -82,17 +74,9 @@ def plot_training_history(
     save_path: Optional[Path] = None,
     title: str = "Training History"
 ) -> None:
-    """Plot training and validation curves.
-    
-    Args:
-        train_history: Training metrics history
-        val_history: Validation metrics history
-        save_path: Path to save figure
-        title: Plot title
-    """
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    
-    # Loss plot
+
+
     if 'loss' in train_history and 'loss' in val_history:
         ax = axes[0]
         epochs = range(1, len(train_history['loss']) + 1)
@@ -103,8 +87,8 @@ def plot_training_history(
         ax.set_title('Loss')
         ax.legend()
         ax.grid(True, alpha=0.3)
-    
-    # Accuracy plot
+
+
     if 'accuracy' in train_history and 'accuracy' in val_history:
         ax = axes[1]
         epochs = range(1, len(train_history['accuracy']) + 1)
@@ -115,15 +99,15 @@ def plot_training_history(
         ax.set_title('Accuracy')
         ax.legend()
         ax.grid(True, alpha=0.3)
-    
+
     plt.suptitle(title, fontsize=14, fontweight='bold')
     plt.tight_layout()
-    
+
     if save_path:
         save_path = Path(save_path)
         save_path.parent.mkdir(parents=True, exist_ok=True)
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    
+
     plt.show()
 
 
@@ -133,47 +117,39 @@ def plot_confusion_matrix(
     save_path: Optional[Path] = None,
     normalize: bool = True
 ) -> None:
-    """Plot confusion matrix.
-    
-    Args:
-        cm: Confusion matrix
-        class_names: Names of classes
-        save_path: Path to save figure
-        normalize: Whether to normalize by true label
-    """
     import matplotlib.pyplot as plt
-    
+
     if normalize:
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
         fmt = '.2%'
     else:
         fmt = 'd'
-    
+
     fig, ax = plt.subplots(figsize=(8, 6))
     im = ax.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
-    
+
     ax.set_xticks(np.arange(len(class_names)))
     ax.set_yticks(np.arange(len(class_names)))
     ax.set_xticklabels(class_names)
     ax.set_yticklabels(class_names)
-    
-    # Add text annotations
+
+
     for i in range(cm.shape[0]):
         for j in range(cm.shape[1]):
             ax.text(j, i, format(cm[i, j], fmt),
                    ha="center", va="center",
                    color="white" if cm[i, j] > cm.max() / 2 else "black")
-    
+
     ax.set_ylabel('True Label')
     ax.set_xlabel('Predicted Label')
     ax.set_title('Confusion Matrix')
-    
+
     fig.colorbar(im, ax=ax)
     plt.tight_layout()
-    
+
     if save_path:
         save_path = Path(save_path)
         save_path.parent.mkdir(parents=True, exist_ok=True)
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    
+
     plt.show()

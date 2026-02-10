@@ -5,59 +5,59 @@ Complete overview of the GCN-HKD Adversarial Robustness system architecture.
 ```
 GCN_HKD_Adversarial_Robustness/
 │
-├── 📁 config/                              # Configuration Management
+├──  config/                              # Configuration Management
 │   ├── __init__.py
 │   ├── config.py                           # [CORE] Hyperparameter management (dataclass-based)
 │   └── paths.py                            # [CORE] Path management for datasets, models, logs
 │
-├── 📁 data/                                # Data Loading & Preprocessing
+├──  data/                                # Data Loading & Preprocessing
 │   ├── __init__.py
 │   ├── loaders.py                          # [CORE] Dataset loaders (SARD, BigVul, D-Sieve)
 │   ├── preprocessors.py                    # [CORE] CFG/DFG graph construction
 │   └── datasets.py                         # [CORE] PyTorch Dataset classes
 │
-├── 📁 models/                              # Deep Learning Models
+├──  models/                              # Deep Learning Models
 │   ├── __init__.py
 │   ├── base.py                             # [CORE] Base model class
 │   ├── gat.py                              # [CORE] Graph Attention Network (Phase 2)
 │   ├── teacher.py                          # [CORE] Teacher model (clean code)
 │   └── student.py                          # [CORE] Student model (perturbed code)
 │
-├── 📁 adversarial/                         # Phase 1: Adversarial Transformations
+├──  adversarial/                         # Phase 1: Adversarial Transformations
 │   ├── __init__.py
 │   ├── transformations.py                  # [CORE] Code transformations (variable renaming, dead code, CFG flattening)
 │   └── perturbations.py                    # [CORE] Graph-level attacks (node/edge perturbations)
 │
-├── 📁 distillation/                        # Phase 3: Knowledge Distillation
+├──  distillation/                        # Phase 3: Knowledge Distillation
 │   ├── __init__.py
 │   ├── hkd.py                              # [CORE] Hierarchical knowledge distillation orchestrator
 │   └── losses.py                           # [CORE] Distillation losses (task + KD + robustness)
 │
-├── 📁 training/                            # Training Orchestration
+├──  training/                            # Training Orchestration
 │   ├── __init__.py
 │   ├── trainer.py                          # [CORE] Main training loop with KD
 │   ├── validator.py                        # [CORE] Validation utilities
 │   └── callbacks.py                        # [CORE] Checkpointing, logging callbacks
 │
-├── 📁 evaluation/                          # Robustness Evaluation
+├──  evaluation/                          # Robustness Evaluation
 │   ├── __init__.py
 │   ├── metrics.py                          # [CORE] Comprehensive metrics (Acc, P, R, F1, AUC-ROC, AUC-PR)
 │   └── robustness.py                       # [CORE] Adversarial robustness evaluation
 │
-├── 📁 utils/                               # Utility Functions
+├──  utils/                               # Utility Functions
 │   ├── __init__.py
 │   ├── logger.py                           # Logging setup
 │   ├── graph_utils.py                      # Graph conversion and normalization
 │   └── visualization.py                    # Plotting utilities (robustness curves, training history)
 │
-├── 📄 main.py                              # [ENTRY POINT] Main pipeline orchestrator
-├── 📄 example_usage.py                     # Usage examples and demonstrations
-├── 📄 requirements.txt                     # Python dependencies
-├── 📄 config_example.yaml                  # Example configuration file
-├── 📄 README.md                            # Project overview and quick start
-├── 📄 USAGE_GUIDE.md                       # Comprehensive usage guide
-├── 📄 .gitignore                           # Git ignore patterns
-└── 📄 PROJECT_STRUCTURE.md                 # This file
+├──  main.py                              # [ENTRY POINT] Main pipeline orchestrator
+├──  example_usage.py                     # Usage examples and demonstrations
+├──  requirements.txt                     # Python dependencies
+├──  config_example.yaml                  # Example configuration file
+├──  README.md                            # Project overview and quick start
+├──  USAGE_GUIDE.md                       # Comprehensive usage guide
+├──  .gitignore                           # Git ignore patterns
+└──  PROJECT_STRUCTURE.md                 # This file
 
 ```
 
@@ -400,16 +400,16 @@ This demonstrates:
 
 ## Publication Checklist for Q1 Journals
 
-✅ Three phases clearly separated
-✅ Multiple datasets (SARD, BigVul, D-Sieve)
-✅ Real-world validation (Linux Kernel, OpenSSL)
-✅ Comprehensive metrics (accuracy, precision, recall, F1, AUC-ROC, AUC-PR)
-✅ Adversarial robustness evaluation
-✅ Comparison with baselines (GCN, CNN-based)
-✅ Ablation studies
-✅ Code and data reproducibility
-✅ Detailed architecture documentation
-✅ Professional code structure and documentation
+ Three phases clearly separated
+ Multiple datasets (SARD, BigVul, D-Sieve)
+ Real-world validation (Linux Kernel, OpenSSL)
+ Comprehensive metrics (accuracy, precision, recall, F1, AUC-ROC, AUC-PR)
+ Adversarial robustness evaluation
+ Comparison with baselines (GCN, CNN-based)
+ Ablation studies
+ Code and data reproducibility
+ Detailed architecture documentation
+ Professional code structure and documentation
 
 ---
 

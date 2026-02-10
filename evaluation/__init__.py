@@ -1,4 +1,3 @@
-"""Evaluation module for robustness and metrics."""
 
 from .metrics import MetricsComputer
 from .robustness import RobustnessEvaluator

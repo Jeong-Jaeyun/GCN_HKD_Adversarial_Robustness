@@ -1,4 +1,3 @@
-"""Adversarial module for robustness evaluation."""
 
 from .transformations import AdversarialTransformer
 from .perturbations import GraphPerturbation, PerturbationFactory

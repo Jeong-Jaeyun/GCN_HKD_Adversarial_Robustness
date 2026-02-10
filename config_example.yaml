@@ -1,7 +1,4 @@
-# Example configuration file for GCN-HKD system
-# Copy and modify this file to customize your experiments
 
-# Data Configuration
 data:
   datasets:
     - SARD
@@ -18,7 +15,6 @@ data:
   num_workers: 4
   prefetch_factor: 2
 
-# Adversarial Transformation Configuration
 adversarial:
   transformations:
     - variable_renaming
@@ -30,7 +26,6 @@ adversarial:
   perturbation_budget: 0.1
   num_perturbation_samples: 5
 
-# Model Configuration
 model:
   num_gat_layers: 3
   num_attention_heads: 8
@@ -44,7 +39,6 @@ model:
   student_hidden_dim: 256
   student_num_layers: 3
 
-# Training Configuration
 training:
   optimizer: adamw
   learning_rate: 0.001
@@ -62,7 +56,6 @@ training:
   eval_every_n_steps: 100
   save_best: true
 
-# Evaluation Configuration
 evaluation:
   metrics:
     - accuracy
@@ -82,7 +75,6 @@ evaluation:
   test_on_kernel_code: true
   test_on_openssl: true
 
-# System Configuration
 seed: 42
 device: cuda
 distributed: false
