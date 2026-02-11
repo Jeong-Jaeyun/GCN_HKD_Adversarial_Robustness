@@ -1,206 +1,290 @@
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Optional
+from typing import Dict, Optional
 
 
 class DistillationLoss(nn.Module):
-
     def __init__(
         self,
         temperature: float = 4.0,
         alpha: float = 0.5,
-        reduction: str = 'mean'
+        reduction: str = "batchmean",
     ):
         super().__init__()
         self.temperature = temperature
         self.alpha = alpha
-        self.reduction = reduction
-
-        self.ce_loss = nn.CrossEntropyLoss(reduction=reduction)
+        self.ce_loss = nn.CrossEntropyLoss()
         self.kl_loss = nn.KLDivLoss(reduction=reduction)
 
-    def forward(
+    def kd_term(
         self,
         student_logits: torch.Tensor,
         teacher_logits: torch.Tensor,
-        targets: torch.Tensor
     ) -> torch.Tensor:
-
-        task_loss = self.ce_loss(student_logits, targets)
-
-
-        student_log_probs = F.log_softmax(
-            student_logits / self.temperature,
-            dim=-1
-        )
-        teacher_probs = F.softmax(
-            teacher_logits / self.temperature,
-            dim=-1
-        )
-
-
-        kd_loss = self.kl_loss(student_log_probs, teacher_probs) * (self.temperature ** 2)
-
-
-        combined_loss = self.alpha * kd_loss + (1 - self.alpha) * task_loss
-
-        return combined_loss
-
-
-class HierarchicalDistillationLoss(nn.Module):
-
-    def __init__(
-        self,
-        temperature: float = 4.0,
-        feature_alpha: float = 0.3,
-        logit_alpha: float = 0.5,
-        task_alpha: float = 0.2,
-        layer_weights: Optional[dict] = None,
-        reduction: str = 'mean'
-    ):
-        super().__init__()
-        self.temperature = temperature
-        self.feature_alpha = feature_alpha
-        self.logit_alpha = logit_alpha
-        self.task_alpha = task_alpha
-        self.reduction = reduction
-
-
-        self.layer_weights = layer_weights or {}
-
-
-        self.ce_loss = nn.CrossEntropyLoss(reduction=reduction)
-        self.kl_loss = nn.KLDivLoss(reduction=reduction)
-        self.mse_loss = nn.MSELoss(reduction=reduction)
+        student_log_probs = F.log_softmax(student_logits / self.temperature, dim=-1)
+        teacher_probs = F.softmax(teacher_logits / self.temperature, dim=-1)
+        return self.kl_loss(student_log_probs, teacher_probs) * (self.temperature ** 2)
 
     def forward(
         self,
         student_logits: torch.Tensor,
         teacher_logits: torch.Tensor,
         targets: torch.Tensor,
-        student_features: Optional[dict] = None,
-        teacher_features: Optional[dict] = None
     ) -> torch.Tensor:
-        losses = {}
-
-
         task_loss = self.ce_loss(student_logits, targets)
-        losses['task'] = task_loss
+        kd_loss = self.kd_term(student_logits, teacher_logits)
+        return self.alpha * kd_loss + (1.0 - self.alpha) * task_loss
 
 
-        student_probs = F.log_softmax(
-            student_logits / self.temperature,
-            dim=-1
+class HierarchicalDistillationLoss(nn.Module):
+    def __init__(
+        self,
+        temperature: float = 4.0,
+        feature_alpha: float = 0.3,
+        logit_alpha: float = 0.5,
+        task_alpha: float = 1.0,
+        consistency_alpha: float = 0.0,
+        layer_weights: Optional[Dict[int, float]] = None,
+    ):
+        super().__init__()
+        self.temperature = temperature
+        self.feature_alpha = feature_alpha
+        self.logit_alpha = logit_alpha
+        self.task_alpha = task_alpha
+        self.consistency_alpha = consistency_alpha
+        self.layer_weights = layer_weights or {}
+
+        self.ce_loss = nn.CrossEntropyLoss()
+        self.kl_loss = nn.KLDivLoss(reduction="batchmean")
+        self.mse_loss = nn.MSELoss()
+        self.feature_projectors = nn.ModuleDict()
+
+    def _kd_term(
+        self,
+        student_logits: torch.Tensor,
+        teacher_logits: torch.Tensor,
+    ) -> torch.Tensor:
+        student_log_probs = F.log_softmax(student_logits / self.temperature, dim=-1)
+        teacher_probs = F.softmax(teacher_logits / self.temperature, dim=-1)
+        return self.kl_loss(student_log_probs, teacher_probs) * (self.temperature ** 2)
+
+    def _consistency_term(
+        self,
+        clean_logits: torch.Tensor,
+        perturbed_logits: torch.Tensor,
+    ) -> torch.Tensor:
+        clean_log_probs = F.log_softmax(clean_logits, dim=-1)
+        perturbed_probs = F.softmax(perturbed_logits.detach(), dim=-1)
+        perturbed_log_probs = F.log_softmax(perturbed_logits, dim=-1)
+        clean_probs = F.softmax(clean_logits.detach(), dim=-1)
+        loss_a = self.kl_loss(clean_log_probs, perturbed_probs)
+        loss_b = self.kl_loss(perturbed_log_probs, clean_probs)
+        return 0.5 * (loss_a + loss_b)
+
+    def _to_graph_embedding(self, feature: torch.Tensor) -> torch.Tensor:
+        if feature.dim() == 1:
+            return feature.unsqueeze(0)
+        if feature.dim() == 2:
+            if feature.size(0) == 1:
+                return feature
+            return feature.mean(dim=0, keepdim=True)
+        flattened = feature.reshape(feature.size(0), -1)
+        return flattened.mean(dim=0, keepdim=True)
+
+    def _project_teacher_feature(
+        self,
+        teacher_feature: torch.Tensor,
+        student_dim: int,
+        layer_key: str,
+        device: torch.device,
+        dtype: torch.dtype,
+    ) -> torch.Tensor:
+        teacher_dim = teacher_feature.size(-1)
+        if teacher_dim == student_dim:
+            return teacher_feature
+
+        projector_key = f"{layer_key}_{teacher_dim}_{student_dim}"
+        if projector_key not in self.feature_projectors:
+            projector = nn.Sequential(
+                nn.Linear(teacher_dim, student_dim),
+                nn.GELU(),
+                nn.Linear(student_dim, student_dim),
+            ).to(device=device, dtype=dtype)
+            self.feature_projectors[projector_key] = projector
+
+        projector = self.feature_projectors[projector_key]
+        return projector(teacher_feature)
+
+    def _feature_alignment_term(
+        self,
+        student_features: Optional[Dict[int, torch.Tensor]],
+        teacher_features: Optional[Dict[int, torch.Tensor]],
+        prefix: str,
+        default_device: torch.device,
+        default_dtype: torch.dtype,
+    ) -> torch.Tensor:
+        if not student_features or not teacher_features:
+            return torch.zeros((), device=default_device, dtype=default_dtype)
+
+        common_layers = sorted(set(student_features.keys()).intersection(teacher_features.keys()))
+        if not common_layers:
+            return torch.zeros((), device=default_device, dtype=default_dtype)
+
+        layer_losses = []
+        for layer_idx in common_layers:
+            student_feature = self._to_graph_embedding(student_features[layer_idx])
+            teacher_feature = self._to_graph_embedding(teacher_features[layer_idx]).to(
+                device=student_feature.device,
+                dtype=student_feature.dtype,
+            )
+            teacher_feature = self._project_teacher_feature(
+                teacher_feature,
+                student_feature.size(-1),
+                f"{prefix}_layer{layer_idx}",
+                student_feature.device,
+                student_feature.dtype,
+            )
+            layer_loss = self.mse_loss(student_feature, teacher_feature)
+            if layer_idx in self.layer_weights:
+                layer_loss = layer_loss * float(self.layer_weights[layer_idx])
+            layer_losses.append(layer_loss)
+
+        if not layer_losses:
+            return torch.zeros((), device=default_device, dtype=default_dtype)
+
+        return torch.stack(layer_losses).mean()
+
+    def forward(
+        self,
+        student_logits: torch.Tensor,
+        teacher_logits: torch.Tensor,
+        targets: torch.Tensor,
+        student_features: Optional[Dict[int, torch.Tensor]] = None,
+        teacher_features: Optional[Dict[int, torch.Tensor]] = None,
+    ):
+        task_loss = self.ce_loss(student_logits, targets)
+        logit_loss = self._kd_term(student_logits, teacher_logits)
+        feature_loss = self._feature_alignment_term(
+            student_features=student_features,
+            teacher_features=teacher_features,
+            prefix="clean",
+            default_device=student_logits.device,
+            default_dtype=student_logits.dtype,
         )
-        teacher_probs = F.softmax(
-            teacher_logits / self.temperature,
-            dim=-1
-        )
-        logit_loss = self.kl_loss(student_probs, teacher_probs) * (self.temperature ** 2)
-        losses['logit_distillation'] = logit_loss
 
-
-        feature_loss = 0.0
-        if student_features is not None and teacher_features is not None:
-            num_matched_layers = 0
-
-            for layer_idx in student_features.keys():
-                if layer_idx in teacher_features:
-                    s_feat = student_features[layer_idx]
-                    t_feat = teacher_features[layer_idx]
-
-
-                    if s_feat.shape != t_feat.shape:
-
-                        if s_feat.shape[1] < t_feat.shape[1]:
-                            t_feat = self._project_features(t_feat, s_feat.shape[1])
-                        elif s_feat.shape[1] > t_feat.shape[1]:
-                            s_feat = self._project_features(s_feat, t_feat.shape[1])
-
-
-                    layer_loss = self.mse_loss(s_feat, t_feat)
-
-
-                    if layer_idx in self.layer_weights:
-                        layer_loss = layer_loss * self.layer_weights[layer_idx]
-
-                    feature_loss += layer_loss
-                    num_matched_layers += 1
-
-            if num_matched_layers > 0:
-                feature_loss = feature_loss / num_matched_layers
-
-        losses['feature_distillation'] = feature_loss
-
-
-        combined_loss = (
-            self.task_alpha * task_loss +
-            self.logit_alpha * logit_loss +
-            self.feature_alpha * feature_loss
+        total_loss = (
+            self.task_alpha * task_loss
+            + self.logit_alpha * logit_loss
+            + self.feature_alpha * feature_loss
         )
 
-        return combined_loss, losses
+        losses = {
+            "task": task_loss,
+            "logit_distillation": logit_loss,
+            "feature_distillation": feature_loss,
+            "consistency": torch.zeros((), device=student_logits.device, dtype=student_logits.dtype),
+        }
+        return total_loss, losses
 
-    def _project_features(self, features: torch.Tensor, target_dim: int) -> torch.Tensor:
-        if features.shape[1] == target_dim:
-            return features
+    def forward_robust(
+        self,
+        student_clean_logits: torch.Tensor,
+        student_perturbed_logits: torch.Tensor,
+        teacher_clean_logits: torch.Tensor,
+        targets: torch.Tensor,
+        student_clean_features: Optional[Dict[int, torch.Tensor]] = None,
+        student_perturbed_features: Optional[Dict[int, torch.Tensor]] = None,
+        teacher_clean_features: Optional[Dict[int, torch.Tensor]] = None,
+    ):
+        task_clean = self.ce_loss(student_clean_logits, targets)
+        task_perturbed = self.ce_loss(student_perturbed_logits, targets)
+        task_loss = 0.5 * (task_clean + task_perturbed)
 
+        logit_clean = self._kd_term(student_clean_logits, teacher_clean_logits)
+        logit_perturbed = self._kd_term(student_perturbed_logits, teacher_clean_logits)
+        logit_loss = 0.5 * (logit_clean + logit_perturbed)
 
-        if features.shape[1] > target_dim:
+        feature_clean = self._feature_alignment_term(
+            student_features=student_clean_features,
+            teacher_features=teacher_clean_features,
+            prefix="clean",
+            default_device=student_clean_logits.device,
+            default_dtype=student_clean_logits.dtype,
+        )
+        feature_perturbed = self._feature_alignment_term(
+            student_features=student_perturbed_features,
+            teacher_features=teacher_clean_features,
+            prefix="perturbed",
+            default_device=student_clean_logits.device,
+            default_dtype=student_clean_logits.dtype,
+        )
+        feature_loss = 0.5 * (feature_clean + feature_perturbed)
 
-            kernel_size = features.shape[1] // target_dim
-            features = F.avg_pool1d(
-                features.unsqueeze(0),
-                kernel_size=kernel_size,
-                stride=kernel_size
-            ).squeeze(0)
-        else:
+        consistency_loss = self._consistency_term(student_clean_logits, student_perturbed_logits)
 
-            repeat_factor = (target_dim + features.shape[1] - 1) // features.shape[1]
-            features = features.repeat_interleave(repeat_factor, dim=1)
-            features = features[:, :target_dim]
+        total_loss = (
+            self.task_alpha * task_loss
+            + self.logit_alpha * logit_loss
+            + self.feature_alpha * feature_loss
+            + self.consistency_alpha * consistency_loss
+        )
 
-        return features
+        losses = {
+            "task": task_loss,
+            "task_clean": task_clean,
+            "task_perturbed": task_perturbed,
+            "logit_distillation": logit_loss,
+            "logit_clean": logit_clean,
+            "logit_perturbed": logit_perturbed,
+            "feature_distillation": feature_loss,
+            "feature_clean": feature_clean,
+            "feature_perturbed": feature_perturbed,
+            "consistency": consistency_loss,
+        }
+        return total_loss, losses
 
 
 class RobustnessLoss(nn.Module):
-
-    def __init__(self, reduction: str = 'mean'):
+    def __init__(self, reduction: str = "batchmean"):
         super().__init__()
-        self.reduction = reduction
         self.kl_loss = nn.KLDivLoss(reduction=reduction)
 
     def forward(
         self,
         clean_logits: torch.Tensor,
-        perturbed_logits: torch.Tensor
+        perturbed_logits: torch.Tensor,
     ) -> torch.Tensor:
-        clean_probs = F.log_softmax(clean_logits, dim=-1)
+        clean_log_probs = F.log_softmax(clean_logits, dim=-1)
         perturbed_probs = F.softmax(perturbed_logits, dim=-1)
-
-        loss = self.kl_loss(clean_probs, perturbed_probs)
-
-        return loss
+        return self.kl_loss(clean_log_probs, perturbed_probs)
 
 
 class CombinedLoss(nn.Module):
-
     def __init__(
         self,
         temperature: float = 4.0,
         task_weight: float = 1.0,
         kd_weight: float = 0.5,
-        robustness_weight: float = 0.3
+        robustness_weight: float = 0.3,
     ):
         super().__init__()
+        self.temperature = temperature
         self.task_weight = task_weight
         self.kd_weight = kd_weight
         self.robustness_weight = robustness_weight
-
-        self.distillation_loss = DistillationLoss(temperature=temperature)
+        self.ce_loss = nn.CrossEntropyLoss()
+        self.kl_loss = nn.KLDivLoss(reduction="batchmean")
         self.robustness_loss = RobustnessLoss()
+
+    def _kd_term(
+        self,
+        student_logits: torch.Tensor,
+        teacher_logits: torch.Tensor,
+    ) -> torch.Tensor:
+        student_log_probs = F.log_softmax(student_logits / self.temperature, dim=-1)
+        teacher_probs = F.softmax(teacher_logits / self.temperature, dim=-1)
+        return self.kl_loss(student_log_probs, teacher_probs) * (self.temperature ** 2)
 
     def forward(
         self,
@@ -208,21 +292,17 @@ class CombinedLoss(nn.Module):
         teacher_logits: torch.Tensor,
         targets: torch.Tensor,
         clean_logits: Optional[torch.Tensor] = None,
-        perturbed_logits: Optional[torch.Tensor] = None
+        perturbed_logits: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        task_loss = self.ce_loss(student_logits, targets)
+        kd_loss = self._kd_term(student_logits, teacher_logits)
 
-        kd_loss = self.distillation_loss(student_logits, teacher_logits, targets)
-
-
-        robustness_loss = 0.0
+        robust_loss = torch.zeros((), device=student_logits.device, dtype=student_logits.dtype)
         if clean_logits is not None and perturbed_logits is not None:
-            robustness_loss = self.robustness_loss(clean_logits, perturbed_logits)
+            robust_loss = self.robustness_loss(clean_logits, perturbed_logits)
 
-
-        combined_loss = (
-            self.task_weight * kd_loss +
-            self.kd_weight * kd_loss +
-            self.robustness_weight * robustness_loss
+        return (
+            self.task_weight * task_loss
+            + self.kd_weight * kd_loss
+            + self.robustness_weight * robust_loss
         )
-
-        return combined_loss

@@ -3,11 +3,11 @@ import torch
 import torch.nn as nn
 import numpy as np
 from torch.utils.data import DataLoader
-from typing import Dict, List, Tuple, Optional, Callable
+from typing import Dict, List, Tuple, Optional
 import logging
 from tqdm import tqdm
 
-from adversarial.perturbations import AdversarialAttackGenerator, PerturbationFactory
+from adversarial.perturbations import AdversarialAttackGenerator
 from .metrics import MetricsComputer
 
 
@@ -100,7 +100,8 @@ class RobustnessEvaluator:
                 logits, probs = model(
                     batch['graph_x'],
                     batch['graph_edge_index'],
-                    batch['graph_edge_attr']
+                    batch['graph_edge_attr'],
+                    batch.get('graph_batch')
                 )
 
                 preds = logits.argmax(dim=-1)
@@ -139,15 +140,14 @@ class RobustnessEvaluator:
                 logits_clean, _ = model(
                     batch['graph_x'],
                     batch['graph_edge_index'],
-                    batch['graph_edge_attr']
+                    batch['graph_edge_attr'],
+                    batch.get('graph_batch')
                 )
                 preds_clean = logits_clean.argmax(dim=-1)
 
 
-                x_pert, edge_index_pert, edge_attr_pert, _ = self.attack_generator.generate_attack(
-                    batch['graph_x'],
-                    batch['graph_edge_index'],
-                    batch['graph_edge_attr'],
+                x_pert, edge_index_pert, edge_attr_pert, batch_pert = self._generate_perturbed_batch(
+                    batch=batch,
                     attack_type=attack_type,
                     perturbation_budget=perturbation_budget
                 )
@@ -156,7 +156,8 @@ class RobustnessEvaluator:
                 logits_pert, _ = model(
                     x_pert,
                     edge_index_pert,
-                    edge_attr_pert
+                    edge_attr_pert,
+                    batch_pert
                 )
                 preds_pert = logits_pert.argmax(dim=-1)
 
@@ -183,7 +184,8 @@ class RobustnessEvaluator:
             'accuracy_clean': metrics_clean['accuracy'],
             'accuracy_perturbed': metrics_pert['accuracy'],
             'robustness_gap': robustness_gap,
-            'agreement': (all_preds_clean == all_preds_pert).mean()
+            'agreement': (all_preds_clean == all_preds_pert).mean(),
+            'prediction_stability': (all_preds_clean == all_preds_pert).mean()
         }
 
         predictions = None
@@ -253,7 +255,8 @@ class RobustnessEvaluator:
                 logits, _ = model(
                     batch['graph_x'],
                     batch['graph_edge_index'],
-                    batch['graph_edge_attr']
+                    batch['graph_edge_attr'],
+                    batch.get('graph_batch')
                 )
                 pred_clean = logits.argmax(dim=-1)
 
@@ -261,7 +264,7 @@ class RobustnessEvaluator:
             num_consistent = 0
             for _ in range(num_samples):
 
-                x_pert, _, _, _ = self.attack_generator.generate_attack(
+                x_pert, edge_index_pert, edge_attr_pert, _ = self.attack_generator.generate_attack(
                     batch['graph_x'],
                     batch['graph_edge_index'],
                     batch['graph_edge_attr'],
@@ -272,8 +275,9 @@ class RobustnessEvaluator:
                 with torch.no_grad():
                     logits_pert, _ = model(
                         x_pert,
-                        batch['graph_edge_index'],
-                        batch['graph_edge_attr']
+                        edge_index_pert,
+                        edge_attr_pert,
+                        batch.get('graph_batch')
                     )
                     pred_pert = logits_pert.argmax(dim=-1)
 
@@ -292,3 +296,119 @@ class RobustnessEvaluator:
             'radius': radius,
             'num_samples': num_samples
         }
+
+    def _generate_perturbed_batch(
+        self,
+        batch: Dict,
+        attack_type: str,
+        perturbation_budget: float
+    ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]]:
+        graph_batch = batch.get("graph_batch")
+        if graph_batch is None or graph_batch.numel() == 0:
+            x_pert, edge_index_pert, edge_attr_pert, _ = self.attack_generator.generate_attack(
+                batch["graph_x"],
+                batch["graph_edge_index"],
+                batch.get("graph_edge_attr"),
+                attack_type=attack_type,
+                perturbation_budget=perturbation_budget
+            )
+            return x_pert, edge_index_pert, edge_attr_pert, graph_batch
+
+        x = batch["graph_x"]
+        edge_index = batch["graph_edge_index"]
+        edge_attr = batch.get("graph_edge_attr")
+        src = edge_index[0]
+        dst = edge_index[1]
+        num_graphs = int(graph_batch.max().item()) + 1
+
+        x_parts = []
+        edge_index_parts = []
+        edge_attr_parts = []
+        graph_batch_parts = []
+        edge_attr_missing = False
+        node_offset = 0
+
+        for graph_id in range(num_graphs):
+            node_ids = torch.nonzero(graph_batch == graph_id, as_tuple=False).view(-1)
+            if node_ids.numel() == 0:
+                continue
+
+            node_features = x.index_select(0, node_ids)
+            global_to_local = torch.full(
+                (x.size(0),),
+                -1,
+                dtype=torch.long,
+                device=x.device
+            )
+            global_to_local[node_ids] = torch.arange(
+                node_ids.numel(),
+                dtype=torch.long,
+                device=x.device
+            )
+
+            edge_mask = (graph_batch[src] == graph_id) & (graph_batch[dst] == graph_id)
+            local_edge_index = torch.stack(
+                [
+                    global_to_local[src[edge_mask]],
+                    global_to_local[dst[edge_mask]]
+                ],
+                dim=0
+            )
+            local_edge_attr = None
+            if edge_attr is not None and edge_attr.size(0) == edge_index.size(1):
+                local_edge_attr = edge_attr[edge_mask]
+
+            pert_x, pert_edge_index, pert_edge_attr, _ = self.attack_generator.generate_attack(
+                node_features,
+                local_edge_index,
+                local_edge_attr,
+                attack_type=attack_type,
+                perturbation_budget=perturbation_budget
+            )
+
+            x_parts.append(pert_x)
+            graph_batch_parts.append(
+                torch.full(
+                    (pert_x.size(0),),
+                    graph_id,
+                    dtype=graph_batch.dtype,
+                    device=graph_batch.device
+                )
+            )
+            edge_index_parts.append(pert_edge_index + node_offset)
+            node_offset += pert_x.size(0)
+
+            if pert_edge_attr is not None:
+                edge_attr_parts.append(pert_edge_attr)
+            else:
+                edge_attr_missing = True
+
+        if not x_parts:
+            return (
+                x.clone(),
+                edge_index.clone(),
+                edge_attr.clone() if edge_attr is not None else None,
+                graph_batch.clone()
+            )
+
+        x_pert = torch.cat(x_parts, dim=0)
+        edge_index_pert = (
+            torch.cat(edge_index_parts, dim=1)
+            if edge_index_parts
+            else torch.zeros((2, 0), dtype=edge_index.dtype, device=edge_index.device)
+        )
+        graph_batch_pert = torch.cat(graph_batch_parts, dim=0)
+
+        if edge_attr_parts and not edge_attr_missing:
+            edge_attr_pert = torch.cat(edge_attr_parts, dim=0)
+        elif edge_attr is not None:
+            attr_dim = edge_attr.size(1) if edge_attr.dim() > 1 else 1
+            edge_attr_pert = torch.zeros(
+                (edge_index_pert.size(1), attr_dim),
+                dtype=edge_attr.dtype,
+                device=edge_attr.device
+            )
+        else:
+            edge_attr_pert = None
+
+        return x_pert, edge_index_pert, edge_attr_pert, graph_batch_pert

@@ -34,12 +34,15 @@ def main(config: Config, output_dir: Path):
 
     try:
         from data.loaders import load_multimodal_dataset
-        from data.datasets import VulnerabilityDataset, MultiDatasetVulnerabilityDataset
+        from data.datasets import MultiDatasetVulnerabilityDataset
 
         logger.info(f"Loading datasets: {config.data.datasets}")
         train_df, val_df, test_df = load_multimodal_dataset(
             config.data.datasets,
-            split_ratio=(config.data.train_ratio, config.data.val_ratio, config.data.test_ratio)
+            split_ratio=(config.data.train_ratio, config.data.val_ratio, config.data.test_ratio),
+            chronological_split=config.data.chronological_split,
+            time_column=config.data.time_column,
+            random_seed=config.data.split_seed
         )
 
         logger.info(f"  Train samples: {len(train_df)}")
@@ -51,21 +54,39 @@ def main(config: Config, output_dir: Path):
             config.data.datasets,
             split='train',
             max_nodes=config.data.max_nodes,
-            node_feature_dim=config.data.node_feature_dims
+            node_feature_dim=config.data.node_feature_dims,
+            train_ratio=config.data.train_ratio,
+            val_ratio=config.data.val_ratio,
+            test_ratio=config.data.test_ratio,
+            split_seed=config.data.split_seed,
+            chronological_split=config.data.chronological_split,
+            time_column=config.data.time_column
         )
 
         val_dataset = MultiDatasetVulnerabilityDataset(
             config.data.datasets,
             split='val',
             max_nodes=config.data.max_nodes,
-            node_feature_dim=config.data.node_feature_dims
+            node_feature_dim=config.data.node_feature_dims,
+            train_ratio=config.data.train_ratio,
+            val_ratio=config.data.val_ratio,
+            test_ratio=config.data.test_ratio,
+            split_seed=config.data.split_seed,
+            chronological_split=config.data.chronological_split,
+            time_column=config.data.time_column
         )
 
         test_dataset = MultiDatasetVulnerabilityDataset(
             config.data.datasets,
             split='test',
             max_nodes=config.data.max_nodes,
-            node_feature_dim=config.data.node_feature_dims
+            node_feature_dim=config.data.node_feature_dims,
+            train_ratio=config.data.train_ratio,
+            val_ratio=config.data.val_ratio,
+            test_ratio=config.data.test_ratio,
+            split_seed=config.data.split_seed,
+            chronological_split=config.data.chronological_split,
+            time_column=config.data.time_column
         )
 
         logger.info("✓ Data loading complete")
@@ -123,20 +144,23 @@ def main(config: Config, output_dir: Path):
     try:
         from training.trainer import Trainer
         from torch.utils.data import DataLoader
+        from data.datasets import graph_batch_collate
 
 
         train_loader = DataLoader(
             train_dataset,
             batch_size=config.data.batch_size,
             shuffle=True,
-            num_workers=config.data.num_workers
+            num_workers=config.data.num_workers,
+            collate_fn=graph_batch_collate
         )
 
         val_loader = DataLoader(
             val_dataset,
             batch_size=config.data.batch_size,
             shuffle=False,
-            num_workers=config.data.num_workers
+            num_workers=config.data.num_workers,
+            collate_fn=graph_batch_collate
         )
 
 
@@ -171,12 +195,14 @@ def main(config: Config, output_dir: Path):
     try:
         from evaluation.robustness import RobustnessEvaluator
         from torch.utils.data import DataLoader
+        from data.datasets import graph_batch_collate
 
         test_loader = DataLoader(
             test_dataset,
             batch_size=config.data.batch_size,
             shuffle=False,
-            num_workers=0
+            num_workers=0,
+            collate_fn=graph_batch_collate
         )
 
         evaluator = RobustnessEvaluator(device=config.device)

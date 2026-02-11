@@ -1,5 +1,16 @@
 
 from .hkd import HierarchicalKnowledgeDistillation
-from .losses import DistillationLoss, HierarchicalDistillationLoss
+from .losses import (
+    CombinedLoss,
+    DistillationLoss,
+    HierarchicalDistillationLoss,
+    RobustnessLoss,
+)
 
-__all__ = ['HierarchicalKnowledgeDistillation', 'DistillationLoss', 'HierarchicalDistillationLoss']
+__all__ = [
+    "HierarchicalKnowledgeDistillation",
+    "DistillationLoss",
+    "HierarchicalDistillationLoss",
+    "RobustnessLoss",
+    "CombinedLoss",
+]

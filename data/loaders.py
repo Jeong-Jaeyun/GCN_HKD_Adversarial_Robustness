@@ -197,7 +197,10 @@ class DataLoaderFactory:
 
 def load_multimodal_dataset(
     dataset_names: List[str],
-    split_ratio: Tuple[float, float, float] = (0.7, 0.15, 0.15)
+    split_ratio: Tuple[float, float, float] = (0.7, 0.15, 0.15),
+    chronological_split: bool = False,
+    time_column: Optional[str] = None,
+    random_seed: int = 42
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     all_data = []
 
@@ -208,6 +211,31 @@ def load_multimodal_dataset(
         all_data.append(data)
 
     combined_data = pd.concat(all_data, ignore_index=True)
+    if combined_data.empty:
+        return combined_data, combined_data, combined_data
+
+    if chronological_split:
+        resolved_time_column = _resolve_time_column(combined_data, time_column)
+        if resolved_time_column is None:
+            raise ValueError(
+                "chronological_split=True but no valid time column was found. "
+                "Provide data.time_column in config or include one of ['published_date','commit_date','date','year','timestamp']."
+            )
+        ordered = combined_data.copy()
+        ordered["_parsed_time"] = pd.to_datetime(ordered[resolved_time_column], errors="coerce")
+        missing_time = ordered["_parsed_time"].isna()
+        if missing_time.all():
+            if resolved_time_column == "year":
+                ordered["_parsed_time"] = pd.to_datetime(
+                    ordered[resolved_time_column].astype(str) + "-01-01",
+                    errors="coerce",
+                )
+            else:
+                raise ValueError(f"Failed to parse time column: {resolved_time_column}")
+        ordered = ordered.sort_values("_parsed_time", kind="stable").drop(columns=["_parsed_time"])
+        combined_data = ordered.reset_index(drop=True)
+    else:
+        combined_data = combined_data.sample(frac=1.0, random_state=random_seed).reset_index(drop=True)
 
 
     n_total = len(combined_data)
@@ -219,3 +247,14 @@ def load_multimodal_dataset(
     test_df = combined_data[n_train+n_val:]
 
     return train_df, val_df, test_df
+
+
+def _resolve_time_column(data: pd.DataFrame, time_column: Optional[str]) -> Optional[str]:
+    if time_column is not None and time_column in data.columns:
+        return time_column
+
+    candidates = ["published_date", "commit_date", "date", "year", "timestamp"]
+    for column in candidates:
+        if column in data.columns:
+            return column
+    return None

@@ -14,6 +14,9 @@ data:
   batch_size: 32
   num_workers: 4
   prefetch_factor: 2
+  chronological_split: false
+  time_column: null
+  split_seed: 42
 
 adversarial:
   transformations:
@@ -25,6 +28,11 @@ adversarial:
   control_flow_complexity: 0.4
   perturbation_budget: 0.1
   num_perturbation_samples: 5
+  attack_types:
+    - node_feature
+    - edge
+    - structural
+  attack_steps: 1
 
 model:
   num_gat_layers: 3
@@ -50,9 +58,15 @@ training:
   vulnerability_loss_weight: 1.0
   kd_loss_weight: 0.5
   robustness_loss_weight: 0.3
+  kd_logit_weight: 0.5
+  kd_feature_weight: 0.3
+  kd_task_weight: 1.0
+  consistency_loss_weight: 0.2
   gradient_clip: 1.0
   accumulation_steps: 4
   mixed_precision: true
+  use_robust_kd: true
+  clean_warmup_epochs: 0
   eval_every_n_steps: 100
   save_best: true
 

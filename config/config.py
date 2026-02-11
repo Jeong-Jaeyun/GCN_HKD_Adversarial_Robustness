@@ -24,6 +24,9 @@ class DataConfig:
     batch_size: int = 32
     num_workers: int = 4
     prefetch_factor: int = 2
+    chronological_split: bool = False
+    time_column: Optional[str] = None
+    split_seed: int = 42
 
 
 @dataclass
@@ -46,6 +49,10 @@ class AdversarialConfig:
 
     perturbation_budget: float = 0.1
     num_perturbation_samples: int = 5
+    attack_types: List[str] = field(
+        default_factory=lambda: ["node_feature", "edge", "structural"]
+    )
+    attack_steps: int = 1
 
 
 @dataclass
@@ -89,11 +96,17 @@ class TrainingConfig:
     vulnerability_loss_weight: float = 1.0
     kd_loss_weight: float = 0.5
     robustness_loss_weight: float = 0.3
+    kd_logit_weight: float = 0.5
+    kd_feature_weight: float = 0.3
+    kd_task_weight: float = 1.0
+    consistency_loss_weight: float = 0.2
 
 
     gradient_clip: float = 1.0
     accumulation_steps: int = 4
     mixed_precision: bool = True
+    use_robust_kd: bool = True
+    clean_warmup_epochs: int = 0
 
 
     eval_every_n_steps: int = 100

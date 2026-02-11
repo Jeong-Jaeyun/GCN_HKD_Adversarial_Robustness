@@ -36,7 +36,8 @@ class Validator:
                 logits, probs = model(
                     batch['graph_x'],
                     batch['graph_edge_index'],
-                    batch['graph_edge_attr']
+                    batch['graph_edge_attr'],
+                    batch.get('graph_batch')
                 )
 
 
@@ -110,7 +111,8 @@ class AdversarialValidator:
                     logits_clean, _ = model(
                         batch['graph_x'],
                         batch['graph_edge_index'],
-                        batch['graph_edge_attr']
+                        batch['graph_edge_attr'],
+                        batch.get('graph_batch')
                     )
                     preds_clean = logits_clean.argmax(dim=-1)
 
@@ -125,7 +127,8 @@ class AdversarialValidator:
                     logits_pert, _ = model(
                         x_pert,
                         edge_index_pert,
-                        edge_attr_pert
+                        edge_attr_pert,
+                        batch.get('graph_batch')
                     )
                     preds_pert = logits_pert.argmax(dim=-1)
 
