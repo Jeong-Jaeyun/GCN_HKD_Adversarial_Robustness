@@ -260,51 +260,6 @@ Or load from YAML:
 ```python
 config = Config.from_yaml('config.yaml')
 ```
-
----
-
-## Datasets for Q1 Journal Submission
-
-### Recommended Evaluation
-1. **SARD**: Synthetic, well-organized, good for CWE hierarchy learning
-2. **BigVul**: Real CVEs, proves "works in real-world"
-3. **D-Sieve + Real code**: Test on Linux Kernel / OpenSSL to show robustness
-
-### Tips for Q1 Acceptance
- Include direct adversarial modifications to Linux Kernel / OpenSSL code
- Show robustness curves with multiple attack types
- Compare against baselines (GCN, CNN-based detectors)
- Ablation study: impact of each phase (Phase 1, 2, 3)
- Statistical significance testing
-
----
-
-## Example: Real-World CVE Evaluation
-
-```python
-import subprocess
-
-# Download and analyze Linux Kernel source
-subprocess.run(['git', 'clone', 'https://github.com/torvalds/linux.git'])
-
-# Apply adversarial transformations
-from adversarial.transformations import AdversarialTransformer
-
-transformer = AdversarialTransformer()
-
-with open('linux/drivers/usb/core/hub.c', 'r') as f:
-    original_code = f.read()
-
-# Transform with variable renaming
-result = transformer.transform(original_code, 'variable_renaming')
-
-# Evaluate detection
-logits, probs = student_model(graph_x, edge_index, edge_attr)
-prediction = probs.argmax() # 0=safe, 1=vulnerable
-```
-
----
-
 ## Module Documentation
 
 ### `config/`
@@ -340,38 +295,7 @@ prediction = probs.argmax() # 0=safe, 1=vulnerable
 
 ---
 
-## Citation
-
-If you use this system, please cite:
-
-```bibtex
-@software{gcn_hkd_2024,
-  title={GCN-HKD: Graph Neural Networks with Hierarchical Knowledge Distillation for Adversarially Robust Vulnerability Detection},
-  author={Your Name},
-  year={2024},
-  url={https://github.com/yourusername/GCN_HKD_Adversarial_Robustness}
-}
-```
-
----
-
-## Future Work
-
-- [ ] Binary code analysis module (using Ghidra/IDA APIs)
-- [ ] More sophisticated CFG extraction (using LLVM IR)
-- [ ] Randomized smoothing for certified robustness
-- [ ] Graph neural network baselines (GraphSAGE, GIN)
-- [ ] Attention visualization tools
-- [ ] Real-time detection server
-
----
-
-## License
-
-MIT License - See LICENSE file
-
----
-
 ## Contact
 
-For questions or collaborations, please open an issue or contact the authors.
+For questions or collaborations, please Contact @UCS Laboratory
+
